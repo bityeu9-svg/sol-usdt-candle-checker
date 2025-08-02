@@ -2,57 +2,43 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
-import json
 
-# Cấu hình các cặp tiền cần theo dõi
+# Cấu hình các cặp tiền cần theo dõi (chỉ Binance)
 SYMBOLS = {
-    "SOL_USDT": {
-        "binance": "SOLUSDT",
-        "mexc": "SOL_USDT"
-    },
     "BTC_USDT": {
         "binance": "BTCUSDT",
-        "mexc": "BTC_USDT"
+        "interval": "5m",
+        "limit": 2
+    },
+    "ETH_USDT": {
+        "binance": "ETHUSDT",
+        "interval": "5m",
+        "limit": 2
+    },
+    "SOL_USDT": {
+        "binance": "SOLUSDT",
+        "interval": "5m",
+        "limit": 2
     },
     "ADA_USDT": {
         "binance": "ADAUSDT",
-        "mexc": "ADA_USDT"
+        "interval": "5m",
+        "limit": 2
     },
     "TON_USDT": {
         "binance": "TONUSDT",
-        "mexc": "TON_USDT"
+        "interval": "5m",
+        "limit": 2
+    },
+    "LTC_USDT": {
+        "binance": "LTCUSDT",
+        "interval": "5m",
+        "limit": 2
     }
 }
 
-# -------- LẤY NẾN TỪ MEXC FUTURES --------
-def get_latest_closed_candle(symbol="SOL_USDT", interval="5m", limit=2):
-    url = "https://contract.mexc.com/api/v1/contract/kline"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "limit": limit
-    }
-
-    resp = requests.get(url, params=params, timeout=10)
-    data = resp.json()
-
-    if not data.get("success"):
-        raise Exception("Lỗi API Futures MEXC:", data)
-
-    candles = data["data"]
-    latest_closed = candles[-2]
-
-    return {
-        "symbol": symbol,
-        "time": datetime.fromtimestamp(latest_closed["t"] / 1000).replace(tzinfo=ZoneInfo("UTC")),
-        "open": float(latest_closed["o"]),
-        "high": float(latest_closed["h"]),
-        "low": float(latest_closed["l"]),
-        "close": float(latest_closed["c"]),
-    }
-
 # -------- LẤY NẾN TỪ BINANCE FUTURES --------
-def get_latest_closed_candle_binance(symbol="SOLUSDT", interval="5m", limit=2):
+def get_latest_closed_candle_binance(symbol, interval, limit):
     url = "https://fapi.binance.com/fapi/v1/klines"
     params = {
         "symbol": symbol,
@@ -90,8 +76,8 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
         (lower_wick / low) > (percent_threshold / 100)
     )
     is_pin_bar = (
-      max(upper_wick, upper_wick) / body >= 1.5 and # check thân nến so với râu nến phải mỏng
-      ((upper_wick * 100 > 100 and lower_wick *  100 < 10 ) or (lower_wick * 100 > 100 and upper_wick * 100 < 10))
+        max(upper_wick, lower_wick) / body >= 1.5 and
+        ((upper_wick * 100 > 100 and lower_wick * 100 < 10) or (lower_wick * 100 > 100 and upper_wick * 100 < 10))
     )
 
     return upper_condition or lower_condition or is_pin_bar
@@ -108,45 +94,36 @@ def send_telegram_message(message):
     except Exception as e:
         print("Lỗi gửi Telegram:", e)
 
-def process_symbol(symbol_key):
+def process_symbol(symbol_key, symbol_config):
     """Xử lý một cặp tiền cụ thể"""
-    symbol_config = SYMBOLS[symbol_key]
-    candle = None
-    source = None
-
-    # Ưu tiên lấy từ Binance
     try:
-        candle = get_latest_closed_candle_binance(symbol=symbol_config["binance"])
-        source = "Binance"
-    except requests.exceptions.Timeout:
-        print(f"⚠️ Timeout Binance cho {symbol_key}. Chuyển sang MEXC...")
-        try:
-            candle = get_latest_closed_candle(symbol=symbol_config["mexc"])
-            source = "MEXC"
-        except Exception as e:
-            print(f"❌ MEXC cũng lỗi cho {symbol_key}:", e)
-    except Exception as e:
-        print(f"❌ Lỗi khác khi gọi Binance cho {symbol_key}:", e)
-
-    if candle:
+        candle = get_latest_closed_candle_binance(
+            symbol=symbol_config["binance"],
+            interval=symbol_config["interval"],
+            limit=symbol_config["limit"]
+        )
+        
         candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
         if has_long_wick_with_movement(candle):
-            print(f"✅ {symbol_key} - NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')} (nguồn: {source})")
+            print(f"✅ {symbol_key} - NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}")
             message = f"""📊 *Phát Hiện Nến Râu Dài*
 - Cặp: {symbol_key.replace('_', '/')}
 - Thời gian: {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}
 - Giá mở: {candle['open']}
 - Giá cao: {candle['high']}
 - Giá thấp: {candle['low']}
-- Giá đóng: {candle['close']}
-- Nguồn: {source}"""
+- Giá đóng: {candle['close']}"""
             send_telegram_message(message)
         else:
             print(f"❌ {symbol_key} - Nến không khớp mẫu.")
+    except requests.exceptions.Timeout:
+        print(f"⚠️ Timeout khi lấy dữ liệu {symbol_key} từ Binance")
+    except Exception as e:
+        print(f"❌ Lỗi khi xử lý {symbol_key}: {str(e)}")
 
 # -------- MAIN --------
 def main():
-    print("⏳ Đang theo dõi nến FUTURES 5m (Binance → fallback MEXC)...")
+    print("⏳ Đang theo dõi nến FUTURES 5m trên Binance...")
     print(f"📊 Các cặp đang theo dõi: {', '.join(SYMBOLS.keys())}\n")
 
     while True:
@@ -154,8 +131,8 @@ def main():
         now_vn = now_utc.astimezone(ZoneInfo("Asia/Bangkok"))
 
         if now_utc.minute % 5 == 0 and now_utc.second < 3:
-            for symbol in SYMBOLS:
-                process_symbol(symbol)
+            for symbol_key, symbol_config in SYMBOLS.items():
+                process_symbol(symbol_key, symbol_config)
             time.sleep(300)  # Đợi 5 phút trước khi kiểm tra lại
         else:
             time.sleep(1)
