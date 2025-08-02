@@ -2,6 +2,7 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
+import json
 
 # -------- LẤY NẾN TỪ MEXC FUTURES --------
 def get_latest_closed_candle(symbol="SOL_USDT", interval="5m", limit=2):
@@ -56,18 +57,29 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
     body = abs(close - open_)
     upper_wick = high - max(open_, close)
     lower_wick = min(open_, close) - low
-    reference_price = (high + low) / 2
 
     upper_condition = (
         upper_wick > ratio_threshold * body and 
-        (upper_wick / reference_price) > (percent_threshold / 100)
+        (upper_wick / max(open_, close)) > (percent_threshold / 100)
     )
     lower_condition = (
         lower_wick > ratio_threshold * body and 
-        (lower_wick / reference_price) > (percent_threshold / 100)
+        (lower_wick / low) > (percent_threshold / 100)
     )
 
     return upper_condition or lower_condition
+
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg/sendMessage"
+    payload = {
+        "chat_id": 1652088640,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print("Lỗi gửi Telegram:", e)
 
 # -------- MAIN --------
 def main():
@@ -99,8 +111,12 @@ def main():
                 candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
                 if has_long_wick_with_movement(candle):
                     print(f"✅ NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')} (nguồn: {source})")
+                    message = """📊 *Nến Râu Dài Phát Hiện*"""
+                    send_telegram_message(message)
                 else:
                     print("❌ Nến không khớp mẫu.")
+                    message = """❌ Nến không khớp mẫu."""
+                    send_telegram_message(message)
             time.sleep(300)
         else:
             time.sleep(1)
