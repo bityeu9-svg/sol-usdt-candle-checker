@@ -71,7 +71,7 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
 
 # -------- MAIN --------
 def main():
-    print("⏳ Đang theo dõi nến FUTURES SOL/USDT 5m (MEXC → fallback Binance)...\n")
+    print("⏳ Đang theo dõi nến FUTURES SOL/USDT 5m (Binance → fallback MEXC)...\n")
 
     while True:
         now_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
@@ -81,17 +81,17 @@ def main():
             candle = None
             source = None
 
-            # Ưu tiên lấy từ MEXC
+            # Ưu tiên lấy từ Binance
             try:
-                candle = get_latest_closed_candle()
-                source = "MEXC"
+                candle = get_latest_closed_candle_binance()
+                source = "Binance"
             except requests.exceptions.Timeout:
-                print("⚠️ Timeout MEXC. Chuyển sang Binance...")
+                print("⚠️ Timeout Binance. Chuyển sang MEXC...")
                 try:
-                    candle = get_latest_closed_candle_binance()
-                    source = "Binance"
+                    candle = get_latest_closed_candle()
+                    source = "MEXC"
                 except Exception as e:
-                    print("❌ Binance cũng lỗi:", e)
+                    print("❌ MEXC cũng lỗi:", e)
             except Exception as e:
                 print("❌ Lỗi khác khi gọi MEXC:", e)
 
@@ -99,7 +99,8 @@ def main():
                 candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
                 if has_long_wick_with_movement(candle):
                     print(f"✅ NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')} (nguồn: {source})")
-
+                else:
+                    print("❌ Nến không khớp mẫu.")
             time.sleep(300)
         else:
             time.sleep(1)
