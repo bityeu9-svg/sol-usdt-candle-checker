@@ -73,7 +73,7 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
     )
     is_pin_bar = (
       max(upper_wick, upper_wick) / body >= 2.5 and # check thân nến so với râu nến phải mỏng
-      ((upper_wick * 100 > 100 and lower_wick *  100 < 36 ) or (lower_wick * 100 > 100 and upper_wick * 100 < 36))
+      ((upper_wick * 100 > 100 and lower_wick *  100 < 10 ) or (lower_wick * 100 > 100 and upper_wick * 100 < 36))
     )
 
     return upper_condition or lower_condition or is_pin_bar
