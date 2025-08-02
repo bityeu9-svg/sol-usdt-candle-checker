@@ -52,9 +52,14 @@ def get_latest_closed_candle_binance(symbol="SOLUSDT", interval="5m", limit=2):
     }
 
 # -------- KIỂM TRA MẪU NẾN --------
-def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0.5):
+def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0.4):
     open_, high, low, close = candle["open"], candle["high"], candle["low"], candle["close"]
     body = abs(close - open_)
+    print(f"Open: {open_}")
+    print(f"High: {high}")
+    print(f"Low: {low}")
+    print(f"Close: {close}")
+
     upper_wick = high - max(open_, close)
     lower_wick = min(open_, close) - low
 
@@ -66,11 +71,15 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
         lower_wick > ratio_threshold * body and 
         (lower_wick / low) > (percent_threshold / 100)
     )
+    is_pin_bar = (
+      max(upper_wick, upper_wick) / body >= 2.5 and # check thân nến so với râu nến phải mỏng
+      ((upper_wick * 100 > 100 and lower_wick *  100 < 36 ) or (lower_wick * 100 > 100 and upper_wick * 100 < 36))
+    )
 
-    return upper_condition or lower_condition
+    return upper_condition or lower_condition or is_pin_bar
 
 def send_telegram_message(message):
-    url = f"https://api.telegram.org/botTokensendMessage"
+    url = f"https://api.telegram.org/bot8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg/sendMessage"
     payload = {
         "chat_id": 1652088640,
         "text": message,
@@ -111,12 +120,12 @@ def main():
                 candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
                 if has_long_wick_with_movement(candle):
                     print(f"✅ NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')} (nguồn: {source})")
-                    message = """📊 *Nến Râu Dài Phát Hiện*"""
+                    message = """📊 *Phát Hiện Nến Râu Dài*"""
                     send_telegram_message(message)
                 else:
                     print("❌ Nến không khớp mẫu.")
-                    message = """❌ Nến không khớp mẫu."""
-                    send_telegram_message(message)
+                    #message = """❌ Nến không khớp mẫu."""
+                    #send_telegram_message(message)
             time.sleep(300)
         else:
             time.sleep(1)
