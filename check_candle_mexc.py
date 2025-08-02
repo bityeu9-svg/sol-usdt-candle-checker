@@ -70,7 +70,7 @@ def has_long_wick_with_movement(candle, ratio_threshold=3.0, percent_threshold=0
     return upper_condition or lower_condition
 
 def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg/sendMessage"
+    url = f"https://api.telegram.org/botTokensendMessage"
     payload = {
         "chat_id": 1652088640,
         "text": message,
