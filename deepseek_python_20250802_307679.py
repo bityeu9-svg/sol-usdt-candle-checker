@@ -103,19 +103,20 @@ def process_symbol(symbol_key, symbol_config):
             limit=symbol_config["limit"]
         )
         
-        candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
+        candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Ho_Chi_Minh"))
         if has_long_wick_with_movement(candle):
             print(f"✅ {symbol_key} - NẾN RÂU DÀI + DAO ĐỘNG > 0.5% tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}")
             message = f"""📊 *Phát Hiện Nến Râu Dài*
-- Cặp: {symbol_key.replace('_', '/')}
-- Thời gian: {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}
-- Giá mở: {candle['open']}
-- Giá cao: {candle['high']}
-- Giá thấp: {candle['low']}
-- Giá đóng: {candle['close']}"""
+ - Cặp: {symbol_key.replace('_', '/')}
+ - Thời gian: {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}
+ - Giá mở: {candle['open']}
+ - Giá cao: {candle['high']}
+ - Giá thấp: {candle['low']}
+ - Giá đóng: {candle['close']}"""
             send_telegram_message(message)
         else:
-            print(f"❌ {symbol_key} - Nến không khớp mẫu.")
+            candle_vn_time = candle["time"].astimezone(ZoneInfo("Asia/Bangkok"))
+            print(f"❌ {symbol_key} - Nến không khớp mẫu tại {candle_vn_time.strftime('%Y-%m-%d %H:%M:%S')}")
     except requests.exceptions.Timeout:
         print(f"⚠️ Timeout khi lấy dữ liệu {symbol_key} từ Binance")
     except Exception as e:
