@@ -56,7 +56,7 @@ def fetch_latest_candle(symbol, interval, limit):
         response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
         candle_data = response.json()
-        latest_candle = candle_data[-1]
+        latest_candle = candle_data[-2]
         
         return {
             "open_time": datetime.fromtimestamp(latest_candle[0]/1000).replace(tzinfo=ZoneInfo("UTC")),
@@ -86,16 +86,19 @@ def analyze_candle_pattern(candle):
         lower_wick = min(open_price, close_price) - low_price
         
         upper_wick_percentage = (upper_wick / max(open_price, close_price)) * 100
-        lower_wick_percentage = (lower_wick / min(open_price, close_price)) * 100
+        lower_wick_percentage = (lower_wick / low_price) * 100
         
         has_upper_wick = (upper_wick > 3 * body_size) and (upper_wick_percentage > 0.4)
         has_lower_wick = (lower_wick > 3 * body_size) and (lower_wick_percentage > 0.4)
-        
-        is_pin_bar = (
-            (body_size <= total_range * 0.3) and
+
+        max_to_min_percent = ((high_price - low_price) / low_price) * 100  # Tổng biên độ
+        # Kiểm tra điều kiện biến động > 0.9%
+        is_volatile = max_to_min_percent > 0.9
+        is_pin_bar = (is_volatile and
+            ((body_size <= total_range * 0.3) and
             (max(upper_wick, lower_wick) >= total_range * 0.7) and
             (((min(open_price, close_price) - low_price) / total_range < 0.2) or
-             ((high_price - max(open_price, close_price)) / total_range < 0.2))
+             ((high_price - max(open_price, close_price)) / total_range < 0.2)))
         )
         
         pin_bar_type = None
@@ -143,8 +146,7 @@ def send_telegram_notification(symbol, candle, analysis):
 📉 Râu dưới: {analysis['lower_wick_percentage']}%
 📏 Biên độ: {analysis['total_range']} ({analysis['body_size']} thân nến)
 {pin_bar_info}
-💵 Giá: {candle['open_price']} → {candle['close_price']}
-🔗 Biểu đồ: https://www.binance.com/en/futures/{symbol.replace('_', '')}"""
+💵 Giá: {candle['open_price']} → {candle['close_price']}"""
         
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
