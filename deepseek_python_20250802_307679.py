@@ -8,131 +8,158 @@ VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 TELEGRAM_BOT_TOKEN = "8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg"
 TELEGRAM_CHAT_ID = "1652088640"
 
-# Danh sách cặp tiền cần theo dõi
+# Danh sách cặp tiền theo dõi
 SYMBOLS = {
-    "BTC_USDT": {"binance": "BTCUSDT", "interval": "5m", "limit": 2},
-    "ETH_USDT": {"binance": "ETHUSDT", "interval": "5m", "limit": 2},
-    "SOL_USDT": {"binance": "SOLUSDT", "interval": "5m", "limit": 2},
-    "ETC_USDT": {"binance": "ETCUSDT", "interval": "5m", "limit": 2},
-    "TON_USDT": {"binance": "TONUSDT", "interval": "5m", "limit": 2},
-    "LTC_USDT": {"binance": "LTCUSDT", "interval": "5m", "limit": 2}
+    "BTC_USDT": {"binance_symbol": "BTCUSDT", "candle_interval": "5m", "limit": 2},
+    "ETH_USDT": {"binance_symbol": "ETHUSDT", "candle_interval": "5m", "limit": 2},
+    "SOL_USDT": {"binance_symbol": "SOLUSDT", "candle_interval": "5m", "limit": 2},
+    "ETC_USDT": {"binance_symbol": "ETCUSDT", "candle_interval": "5m", "limit": 2},
+    "TON_USDT": {"binance_symbol": "TONUSDT", "candle_interval": "5m", "limit": 2},
+    "LTC_USDT": {"binance_symbol": "LTCUSDT", "candle_interval": "5m", "limit": 2}
 }
 
-# ========== HÀM CHÍNH ==========
-def get_latest_closed_candle_binance(symbol, interval, limit):
-    """Lấy dữ liệu nến từ Binance Futures API"""
+def fetch_latest_candle(symbol, interval, limit):
+    """Lấy dữ liệu nến từ Binance API"""
     url = "https://fapi.binance.com/fapi/v1/klines"
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
     
     try:
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        latest_closed = data[-2]
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        candle_data = response.json()
+        latest_candle = candle_data[-2]  # Nến đã đóng gần nhất
         
         return {
-            "symbol": symbol,
-            "time": datetime.fromtimestamp(latest_closed[0]/1000).replace(tzinfo=ZoneInfo("UTC")),
-            "open": float(latest_closed[1]),
-            "high": float(latest_closed[2]),
-            "low": float(latest_closed[3]),
-            "close": float(latest_closed[4])
+            "open_time": datetime.fromtimestamp(latest_candle[0]/1000).replace(tzinfo=ZoneInfo("UTC")),
+            "open_price": float(latest_candle[1]),
+            "high_price": float(latest_candle[2]),
+            "low_price": float(latest_candle[3]),
+            "close_price": float(latest_candle[4]),
+            "volume": float(latest_candle[5])
         }
-    except Exception as e:
-        print(f"⚠️ Lỗi API {symbol}: {str(e)}")
+    except Exception as error:
+        print(f"🚨 Lỗi khi lấy dữ liệu {symbol}: {str(error)}")
         return None
 
-def check_candle_pattern(candle):
-    """Phát hiện nến đặc biệt với công thức chính xác"""
-    open_, high, low, close = candle["open"], candle["high"], candle["low"], candle["close"]
-    body = abs(close - open_)
+def analyze_candle_pattern(candle):
+    """Phân tích mẫu nến với tên biến đầy đủ"""
+    open_price = candle["open_price"]
+    high_price = candle["high_price"]
+    low_price = candle["low_price"]
+    close_price = candle["close_price"]
     
-    upper_wick = high - max(open_, close)
-    lower_wick = min(open_, close) - low
-
-    # Công thức đã được kiểm tra kỹ
-    upper_condition = (upper_wick > 3 * body) and ((upper_wick / close) > 0.004)  # Chia cho giá đóng
-    lower_condition = (lower_wick > 3 * body) and ((lower_wick / open_) > 0.004)  # Chia cho giá mở
+    # Tính toán các đặc điểm nến
+    body_size = abs(close_price - open_price)
+    upper_wick_size = high_price - max(open_price, close_price)
+    lower_wick_size = min(open_price, close_price) - low_price
     
-    is_pin_bar = (
-        (max(upper_wick, lower_wick) / body >= 1.5) and
-        ((upper_wick * 100 > 100 and lower_wick * 100 < 10) or 
-         (lower_wick * 100 > 100 and upper_wick * 100 < 10))
-    )
-
-    if upper_condition:
-        return True, "upper_wick"
-    elif lower_condition:
-        return True, "lower_wick"
-    elif is_pin_bar:
-        return True, "pin_bar"
-    return False, None
-
-def send_telegram_alert(symbol, pattern, candle):
-    """Gửi cảnh báo qua Telegram"""
-    message = f"""🚨 *PHÁT HIỆN NẾN ĐẶC BIỆT* 🚨
-• Cặp: {symbol.replace('_', '/')}
-• Mẫu: {pattern.upper()}
-• Thời gian: {candle['time'].strftime('%Y-%m-%d %H:%M:%S')}
-• Mở/Đóng: {candle['open']} → {candle['close']}
-• Cao/Thấp: {candle['high']} / {candle['low']}
-• Biến động: {(abs(candle['close']-candle['open'])/candle['open'])*100:.2f}%"""
+    # Tính phần trăm râu nến
+    upper_wick_percentage = (upper_wick_size / max(open_price, close_price)) * 100
+    lower_wick_percentage = (lower_wick_size / low_price) * 100
     
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        json={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"},
-        timeout=5
-    )
-
-def process_symbol(symbol_key, symbol_config):
-    """Xử lý từng cặp tiền"""
-    candle = get_latest_closed_candle_binance(
-        symbol_config["binance"],
-        symbol_config["interval"],
-        symbol_config["limit"]
+    # Kiểm tra các điều kiện
+    has_upper_wick_pattern = (upper_wick_size > 3 * body_size) and (upper_wick_percentage > 0.4)
+    has_lower_wick_pattern = (lower_wick_size > 3 * body_size) and (lower_wick_percentage > 0.4)
+    is_pin_bar_pattern = (max(upper_wick_size, lower_wick_size) / body_size >= 1.5) and (
+        (upper_wick_percentage > 1.0 and lower_wick_percentage < 0.1) or 
+        (lower_wick_percentage > 1.0 and upper_wick_percentage < 0.1)
     )
     
-    if not candle:
-        return
-
-    # Chuyển timezone và định dạng
-    candle["time"] = candle["time"].astimezone(VIETNAM_TIMEZONE)
-    time_str = candle["time"].strftime('%H:%M:%S')
-    
-    # Kiểm tra pattern
-    is_special, pattern = check_candle_pattern(candle)
-    
-    if is_special:
-        print(f"✅ {symbol_key} - {pattern.upper()} lúc {time_str}")
-        send_telegram_alert(symbol_key, pattern, candle)
-    else:
-        print(f"""ℹ️ {symbol_key} - Nến thường lúc {time_str}
-   Mở: {candle['open']}
-   Đóng: {candle['close']} ({(candle['close']/candle['open']-1)*100:.2f}%)
-   Râu: ↑{candle['high']-max(candle['open'], candle['close']):.2f} 
-        ↓{min(candle['open'], candle['close'])-candle['low']:.2f}""")
-
-# ========== MAIN ==========
-def main():
-    print("🔔 Bắt đầu theo dõi nến 5m trên Binance")
-    print(f"📊 Các cặp: {', '.join(SYMBOLS.keys())}")
-    print(f"⏰ Timezone: {VIETNAM_TIMEZONE}\n")
-    
-    while True:
-        now = datetime.now(VIETNAM_TIMEZONE)
+    # Xác định loại mẫu nến
+    pattern_type = None
+    if has_upper_wick_pattern:
+        pattern_type = "UPPER_WICK"
+    elif has_lower_wick_pattern:
+        pattern_type = "LOWER_WICK"
+    elif is_pin_bar_pattern:
+        pattern_type = "PIN_BAR"
         
-        if now.minute % 5 == 0 and now.second < 10:  # Kiểm tra đầu mỗi 5 phút
-            print(f"\n=== Chu kỳ kiểm tra {now.strftime('%H:%M:%S')} ===")
-            for symbol_key, config in SYMBOLS.items():
-                process_symbol(symbol_key, config)
-            time.sleep(300 - now.second % 60)  # Chính xác 5 phút
-        else:
-            time.sleep(1)
+    return {
+        "pattern_type": pattern_type,
+        "upper_wick_percentage": round(upper_wick_percentage, 2),
+        "lower_wick_percentage": round(lower_wick_percentage, 2),
+        "body_size": round(body_size, 4),
+        "trend_direction": "TĂNG" if close_price > open_price else "GIẢM"
+    }
+
+def send_telegram_notification(symbol, candle, analysis):
+    """Gửi thông báo chi tiết qua Telegram"""
+    candle_time = candle["open_time"].astimezone(VIETNAM_TIMEZONE).strftime("%H:%M:%S")
+    
+    message = f"""
+🔔 *{symbol.replace('_', '/')}* - {analysis['pattern_type']} lúc {candle_time}
+📊 Xu hướng: {analysis['trend_direction']}
+📈 Râu trên: {analysis['upper_wick_percentage']}%
+📉 Râu dưới: {analysis['lower_wick_percentage']}%
+💵 Giá: {candle['open_price']} → {candle['close_price']}
+🔷 Kích thước thân nến: {analysis['body_size']}
+🔗 Biểu đồ: https://www.binance.com/en/futures/{symbol.replace('_', '')}"""
+    
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "Markdown"
+            },
+            timeout=5
+        )
+    except Exception as error:
+        print(f"⚠️ Lỗi gửi Telegram: {str(error)}")
+
+def main():
+    print("🟢 Khởi động trình theo dõi nến Binance Futures")
+    print(f"⏱ Múi giờ: {VIETNAM_TIMEZONE}")
+    print(f"📊 Danh sách cặp tiền: {', '.join(SYMBOLS.keys())}\n")
+    
+    try:
+        while True:
+            current_time = datetime.now(VIETNAM_TIMEZONE)
+            
+            # Chạy vào đầu mỗi phút thứ 5
+            if current_time.minute % 5 == 0 and current_time.second < 10:
+                print(f"\n=== Kiểm tra lúc {current_time.strftime('%H:%M:%S')} ===")
+                
+                for symbol_name, config in SYMBOLS.items():
+                    # Lấy dữ liệu nến
+                    candle_data = fetch_latest_candle(
+                        config["binance_symbol"],
+                        config["candle_interval"],
+                        config["limit"]
+                    )
+                    
+                    if not candle_data:
+                        continue
+                        
+                    # Phân tích nến
+                    candle_data["open_time"] = candle_data["open_time"].astimezone(VIETNAM_TIMEZONE)
+                    analysis_result = analyze_candle_pattern(candle_data)
+                    
+                    # Hiển thị kết quả
+                    if analysis_result["pattern_type"]:
+                        print(f"✅ {symbol_name} - {analysis_result['pattern_type']}")
+                        print(f"   Râu trên: {analysis_result['upper_wick_percentage']}%")
+                        print(f"   Râu dưới: {analysis_result['lower_wick_percentage']}%")
+                        send_telegram_notification(symbol_name, candle_data, analysis_result)
+                    else:
+                        print(f"ℹ️ {symbol_name} - Nến thông thường")
+                        print(f"   Râu trên: {analysis_result['upper_wick_percentage']}%")
+                        print(f"   Râu dưới: {analysis_result['lower_wick_percentage']}%")
+                        send_telegram_notification(symbol_name, candle_data, analysis_result)
+                
+                time.sleep(300 - current_time.second % 60)  # Đếm ngược chính xác
+            else:
+                time.sleep(1)
+                
+    except KeyboardInterrupt:
+        print("\n🛑 Dừng chương trình theo yêu cầu")
+    except Exception as critical_error:
+        print(f"🚨 Lỗi nghiêm trọng: {str(critical_error)}")
 
 if __name__ == "__main__":
-    # Kiểm tra kết nối trước khi chạy
-    try:
-        requests.get("https://api.binance.com", timeout=5)
-        main()
-    except Exception as e:
-        print(f"❌ Lỗi khởi động: {str(e)}")
+    main()
