@@ -45,7 +45,7 @@ def fetch_latest_candle(symbol_config):
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
         candle_data = response.json()
-        latest_candle = candle_data[-2]
+        latest_candle = candle_data[-1]
         
         return {
             "open_time": datetime.fromtimestamp(latest_candle[0]/1000).replace(tzinfo=ZoneInfo("UTC")),
