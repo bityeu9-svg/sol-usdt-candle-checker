@@ -9,7 +9,7 @@ VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 TELEGRAM_BOT_TOKEN = "8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg"
 TELEGRAM_CHAT_ID = "1652088640"
 TOP_SYMBOL_LIMIT = 200  # Đã sửa từ 50 thành 200
-RATE_PERCENT = 1        # Đã sửa từ 0.5 thành 1
+RATE_PERCENT = 2        # Đã sửa từ 0.5 thành 1
 
 SYMBOLS = []
 last_fetch_time = None
