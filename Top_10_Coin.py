@@ -9,7 +9,8 @@ VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 TELEGRAM_BOT_TOKEN = "8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg"
 TELEGRAM_CHAT_ID = "1652088640"
 TOP_SYMBOL_LIMIT = 10
-RATE_PERCENT = 0.4
+RATE_PERCENT = 0.25
+RATE_BODY  = 0.66 
 
 
 SYMBOLS = []
@@ -33,7 +34,7 @@ def send_telegram_alert(message, is_critical=False):
 
 def fetch_top_symbols():
     try:
-        print("🔁 Lấy danh sách top 50 coin volume cao...")
+        print(f"🔁 Lấy danh sách top {TOP_SYMBOL_LIMIT} coin volume cao...")
         url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -93,9 +94,9 @@ def analyze_candle(candle):
         lower_percent = (lower / low_price) * 100 if low_price > 0 else 0
 
         candle_type = "other"
-        if lower_percent >= RATE_PERCENT: 
+        if lower_percent >= RATE_PERCENT and lower / (high_price - low_price) >= RATE_BODY:
             candle_type = "Râu nến dưới"
-        elif upper_percent >= RATE_PERCENT:
+        elif upper_percent >= RATE_PERCENT and upper / (high_price - low_price) >= RATE_BODY:
             candle_type = "Râu nến trên"
 
         return {
