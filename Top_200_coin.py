@@ -8,8 +8,10 @@ import traceback
 VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 TELEGRAM_BOT_TOKEN = "8371675744:AAEGtu-477FoXe95zZzE5pSG8jbkwrtc7tg"
 TELEGRAM_CHAT_ID = "1652088640"
-TOP_SYMBOL_LIMIT = 200  # Đã sửa từ 50 thành 200
-RATE_PERCENT = 2        # Đã sửa từ 0.5 thành 1
+TOP_SYMBOL_LIMIT = 200
+RATE_PERCENT = 2
+RATE_BODY  = 0.66 
+
 
 SYMBOLS = []
 last_fetch_time = None
@@ -32,7 +34,7 @@ def send_telegram_alert(message, is_critical=False):
 
 def fetch_top_symbols():
     try:
-        print("🔁 Lấy danh sách top coin volume cao...")
+        print(f"🔁 Lấy danh sách top {TOP_SYMBOL_LIMIT} coin volume cao...")
         url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -65,6 +67,7 @@ def fetch_latest_candle(symbol_config):
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
+        # Lấy cây nến đóng cửa gần nhất
         candle = data[-1]
         return {
             "open_time": datetime.fromtimestamp(candle[0] / 1000).replace(tzinfo=ZoneInfo("UTC")),
@@ -91,9 +94,9 @@ def analyze_candle(candle):
         lower_percent = (lower / low_price) * 100 if low_price > 0 else 0
 
         candle_type = "other"
-        if lower_percent >= RATE_PERCENT: 
+        if lower_percent >= RATE_PERCENT and lower / (high_price - low_price) >= RATE_BODY:
             candle_type = "Râu nến dưới"
-        elif upper_percent >= RATE_PERCENT:
+        elif upper_percent >= RATE_PERCENT and upper / (high_price - low_price) >= RATE_BODY:
             candle_type = "Râu nến trên"
 
         return {
@@ -167,10 +170,10 @@ def main():
                         continue
                     analysis = analyze_candle(candle)
                     if analysis:
-                        print(f"✔️ {sym['symbol']} | {analysis['candle_type']} | Râu trên: {analysis['upper_wick_percent']:.4f}% | Râu dưới: {analysis['lower_wick_percent']:.4f}%")
+                        print(f"✔️ {sym['symbol']} | {analysis['candle_type']} | Râu nến trên: {analysis['upper_wick_percent']:.4f}% | % Râu nến dưới: {analysis['lower_wick_percent']:.4f}%")
                         send_telegram_notification(sym['symbol'], candle, analysis)
 
-                time.sleep(300 - now_utc.second % 60)
+                time.sleep(300 - now_utc.second % 60)  # Đợi hết 1 phút tránh trùng
             else:
                 time.sleep(1)
         except Exception as e:
